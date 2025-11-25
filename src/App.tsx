@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
+import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { 
-  Utensils, Coffee, Sun, Moon, RotateCcw, Copy, Check, 
+  Utensils, Coffee, Sun, Moon, RotateCcw, 
   Plus, Trash2, Save, Edit2, ShoppingBag, Image as ImageIcon, 
-  ArrowLeft, X, ChevronDown, ArrowUpDown, User, Calendar, TrendingDown, Activity, Search, Upload, LogOut, LogIn, Loader, AlertTriangle, Globe, Heart, ChevronLeft, ChevronRight, XCircle, Scale
+  ArrowLeft, X, ChevronDown, User, Calendar, TrendingDown, Activity, Search, Upload, LogOut, LogIn, Loader, AlertTriangle, Globe, Heart, ChevronLeft, ChevronRight, Scale
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // --- CONFIGURATIE ---
 const firebaseConfig = {
@@ -82,9 +82,9 @@ const TRANSLATIONS = {
     act_sedentary: 'Sedentary (Office)', act_light: 'Light (1-3x sport)', act_moderate: 'Moderate (3-5x)', act_active: 'Active (6-7x)', act_very_active: 'Very Active / Athlete',
     sort_name: 'Name (A-Z)', sort_protein: 'Protein (High)', sort_kcal: 'Kcal (High)', sort_price_low: 'Price (Low)', sort_price_high: 'Price (High)',
     tab_meals: 'Meals', tab_products: 'Products', add_to_planner: 'Add',
-    ochtend: 'Breakfast', middag: 'Lunch', avond: 'Dinner',
+    slot_ochtend: 'Breakfast', slot_middag: 'Lunch', slot_avond: 'Dinner', slot_snack: 'Snack',
     no_data: 'No items found', firebase_connected: 'Logged In', based_on: 'Based on TDEE',
-    adjust_portion: 'Adjust Portion', close: 'Close'
+    adjust_portion: 'Adjust Portion', close: 'Close', total_calc: 'Total'
   },
   nl: {
     planner: 'Planner', meals: 'Maaltijden', products: 'Producten', profile: 'Profiel', login: 'Inloggen', register: 'Registreren', logout: 'Uitloggen',
@@ -97,12 +97,12 @@ const TRANSLATIONS = {
     day_total: 'Dag totaal', choose: 'Kies', sort_fav: 'Favorieten eerst', week_prev: 'Vorige', week_next: 'Volgende', today: 'Vandaag',
     per_week: 'per week', per_month: 'per maand', toggle_period: 'Wijzig periode',
     male: 'Man', female: 'Vrouw',
-    act_sedentary: 'Weinig (Kantoor)', act_light: 'Licht (1-3x sport)', act_moderate: 'Gemiddeld (3-5x)', act_active: 'Zwaar (6-7x)', act_very_active: 'Fysiek Werk / Atleet',
-    sort_name: 'Naam (A-Z)', sort_protein: 'Eiwit (Hoog)', sort_kcal: 'Kcal (Hoog)', sort_price_low: 'Prijs (Laag)', sort_price_high: 'Prijs (Hoog)',
+    act_sedentary: 'Weinig (kantoor)', act_light: 'Licht (1-3x sport)', act_moderate: 'Gemiddeld (3-5x)', act_active: 'Zwaar (6-7x)', act_very_active: 'Fysiek werk / atleet',
+    sort_name: 'Naam (A-Z)', sort_protein: 'Eiwit (hoog)', sort_kcal: 'Kcal (hoog)', sort_price_low: 'Prijs (laag)', sort_price_high: 'Prijs (hoog)',
     tab_meals: 'Maaltijden', tab_products: 'Producten', add_to_planner: 'Toevoegen',
-    ochtend: 'Ochtend', middag: 'Middag', avond: 'Avond',
+    slot_ochtend: 'Ochtend', slot_middag: 'Middag', slot_avond: 'Avond', slot_snack: 'Snack',
     no_data: 'Geen items gevonden', firebase_connected: 'Ingelogd', based_on: 'Gebaseerd op TDEE',
-    adjust_portion: 'Portie Aanpassen', close: 'Sluiten'
+    adjust_portion: 'Portie aanpassen', close: 'Sluiten', total_calc: 'Totaal'
   }
 };
 
@@ -161,6 +161,17 @@ const calculateTDEE = (
   return Math.round(bmr * (multipliers[activity] || 1.2));
 };
 
+// Hulpfunctie voor slimme portie weergave
+const getFormattedPortion = (amount: number, unit: string, t: string) => {
+    const match = unit.match(/^(\d+)\s*(.*)$/);
+    if (match) {
+        const baseAmt = parseFloat(match[1]);
+        const unitName = match[2];
+        return `(${t}: ${baseAmt * amount} ${unitName})`;
+    }
+    return "";
+};
+
 // --- COMPONENTEN ---
 
 const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
@@ -173,12 +184,18 @@ const Option = ({ value, children }: { value: string | number, children: React.R
     </option>
 );
 
+// FIX: Select component met appearance-none om dubbele pijltjes te voorkomen
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">
       <select 
         {...props} 
-        className={`w-full p-2 pr-8 border rounded-lg text-base bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white ${props.className || ''}`}
-        style={{ fontSize: '16px', backgroundImage: 'none' }} 
+        className={`w-full p-2 pr-8 border rounded-lg text-base bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white appearance-none ${props.className || ''}`}
+        style={{ 
+            fontSize: '16px', 
+            backgroundImage: 'none',
+            WebkitAppearance: 'none',
+            MozAppearance: 'none'
+        }} 
       >
         {props.children}
       </select>
@@ -405,7 +422,7 @@ const ItemSelector = ({ isOpen, onClose, category, meals, products, onSelect, la
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-end md:items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
         <div className="p-4 border-b dark:border-slate-700 flex justify-between items-center">
-            <h3 className="font-bold dark:text-white">{t.choose} {t[category] || category}</h3>
+            <h3 className="font-bold dark:text-white">{t.choose} {t[("slot_" + category) as keyof typeof t] || category}</h3>
             <button onClick={onClose}><X size={20} className="dark:text-white"/></button>
         </div>
         
@@ -634,6 +651,7 @@ const MealManager = ({ meals, setMeals, products, lang }: any) => {
            </div>
            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 space-y-4">
               <Input value={currentMeal.title} onChange={e => setEditor({...currentMeal, title: e.target.value})} placeholder={t.name} className="font-bold" />
+              {/* CATEGORIE KIEZER VERWIJDERD IN DE EDITOR */}
               <div className="flex items-center gap-2 cursor-pointer" onClick={() => setEditor({...currentMeal, isFavorite: !currentMeal.isFavorite})}>
                  <Heart size={20} className={currentMeal.isFavorite ? "fill-red-500 text-red-500" : "text-slate-400"} />
                  <span className="text-sm dark:text-white">Favoriet</span>
@@ -726,6 +744,17 @@ const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) 
       onClose();
   };
 
+  // Helper voor slimme weergave in popup
+  const getSmartPortionText = (amount: number, unit: string) => {
+      const match = unit.match(/^(\d+)\s*(.*)$/);
+      if (match) {
+          const baseAmt = parseFloat(match[1]);
+          const unitName = match[2];
+          return `(${t.total_calc}: ${baseAmt * amount} ${unitName})`;
+      }
+      return "";
+  };
+
   return (
     <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
        <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-4 space-y-4">
@@ -740,7 +769,10 @@ const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) 
                    if (!prodInfo) return null;
                    return (
                        <div key={p.productId} className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 p-2 rounded">
-                           <div className="text-sm font-bold dark:text-white">{prodInfo.name}</div>
+                           <div className="flex flex-col">
+                               <span className="text-sm font-bold dark:text-white">{prodInfo.name}</span>
+                               <span className="text-[10px] text-slate-400">{getSmartPortionText(p.amount, prodInfo.unit)}</span>
+                           </div>
                            <div className="flex items-center gap-2">
                                <input 
                                   type="number" 
@@ -763,7 +795,7 @@ const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) 
 // --- PLANNER ---
 const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurrentDayStr, meals, lang, darkMode }: any) => {
   const [selectorCat, setSelectorCat] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<PlannerItem | null>(null); // Voor pop-up
+  const [editingItem, setEditingItem] = useState<PlannerItem | null>(null); 
   const t = TRANSLATIONS[lang as Language];
   
   // Helper: Date formatting
@@ -802,12 +834,9 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
   };
 
   const updateItem = (updatedItem: PlannerItem) => {
-      // Zoek in welk slot dit item zat (beetje inefficiënt maar werkt prima voor kleine data)
-      // We weten niet welk slot het was, dus checken we ze allemaal.
       const dayItems = plannerData[currentDayStr] || {};
       let foundSlot: Slot | null = null;
       
-      // Vind slot
       (Object.keys(dayItems) as Slot[]).forEach(slot => {
           if (dayItems[slot]?.some(i => i.instanceId === updatedItem.instanceId)) {
               foundSlot = slot;
@@ -872,7 +901,7 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
                        return (
                           <div 
                               key={item.instanceId} 
-                              onClick={() => setEditingItem(item)} // OPEN EDIT MODAL
+                              onClick={() => setEditingItem(item)} 
                               className="p-3 bg-blue-50 dark:bg-slate-700/50 border border-blue-100 dark:border-slate-600 rounded-xl flex justify-between items-center cursor-pointer hover:border-blue-300 transition"
                           >
                              <div>
@@ -895,7 +924,7 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
 
        <ItemSelector isOpen={!!selectorCat} onClose={() => setSelectorCat(null)} category={selectorCat} meals={meals} products={products} onSelect={handleSelect} lang={lang} />
        
-       {/* DE NIEUWE PORTIE EDITOR POPUP */}
+       {/* PORTIE EDITOR POPUP */}
        <PlannerItemEditor 
           isOpen={!!editingItem} 
           item={editingItem} 
@@ -922,6 +951,7 @@ const App = () => {
   const [view, setView] = useState('planner');
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   const [meals, setMeals] = useState<Meal[]>(DEFAULT_MEALS);
+  // GEWIJZIGD: Key 'mealplanner_data_final'
   const [plannerData, setPlannerData] = useState<PlannerData>({});
   const [currentDayStr, setCurrentDayStr] = useState<string>(getISODate(new Date()));
   const [userProfile, setUserProfile] = useState<UserProfile>({ weight: 105, height: 193, age: 22, gender: 'man', activity: 3, targetKcal: 2500, targetProtein: 215 });
@@ -929,34 +959,39 @@ const App = () => {
 
   useEffect(() => { if (auth) return onAuthStateChanged(auth, (u) => setUser(u)); }, []);
 
-  // Data sync: Using version 8 keys to avoid data corruption
+  // Data sync: Using FINAL keys
   useEffect(() => {
     if (user && db) {
        const u1 = onSnapshot(doc(db, "users", user.uid, "data", "products"), s => s.exists() && setProducts(s.data().items));
        const u2 = onSnapshot(doc(db, "users", user.uid, "data", "meals"), s => s.exists() && setMeals(s.data().items));
-       const u3 = onSnapshot(doc(db, "users", user.uid, "data", "planner_v8"), s => s.exists() && setPlannerData(s.data().items));
-       const u4 = onSnapshot(doc(db, "users", user.uid, "data", "profile"), s => s.exists() && setUserProfile(s.data().info));
-       const u5 = onSnapshot(doc(db, "users", user.uid, "data", "weight"), s => s.exists() && setWeightHistory(s.data().items));
+       const u3 = onSnapshot(doc(db, "users", user.uid, "data", "planner_final"), s => s.exists() && setPlannerData(s.data().items));
+       const u4 = onSnapshot(doc(db, "users", user.uid, "data", "profile_final"), s => s.exists() && setUserProfile(s.data().info));
+       const u5 = onSnapshot(doc(db, "users", user.uid, "data", "weight_final"), s => s.exists() && setWeightHistory(s.data().items));
        return () => { u1(); u2(); u3(); u4(); u5(); };
     } else {
        const ls = (k:string) => localStorage.getItem(k);
        try {
-         if(ls('mp_products_stable')) setProducts(JSON.parse(ls('mp_products_stable')!));
-         if(ls('mp_meals_stable')) setMeals(JSON.parse(ls('mp_meals_stable')!));
-         if(ls('mp_planner_stable')) setPlannerData(JSON.parse(ls('mp_planner_stable')!));
-         if(ls('mp_profile_stable')) setUserProfile(JSON.parse(ls('mp_profile_stable')!));
-         if(ls('mp_weight_stable')) setWeightHistory(JSON.parse(ls('mp_weight_stable')!));
+         if(ls('mp_products_final')) setProducts(JSON.parse(ls('mp_products_final')!));
+         if(ls('mp_meals_final')) setMeals(JSON.parse(ls('mp_meals_final')!));
+         if(ls('mp_planner_final')) setPlannerData(JSON.parse(ls('mp_planner_final')!));
+         if(ls('mp_profile_final')) setUserProfile(JSON.parse(ls('mp_profile_final')!));
+         if(ls('mp_weight_final')) setWeightHistory(JSON.parse(ls('mp_weight_final')!));
        } catch(e) { console.error("Local load err", e); }
     }
   }, [user]);
 
   const saveData = (type: string, data: any) => {
     let key = "items"; if(type === "profile") key = "info";
-    if (user && db) setDoc(doc(db, "users", user.uid, "data", type), { [key]: data }, { merge: true });
-    else localStorage.setItem(`my_${type}_v8`, JSON.stringify(data));
+    let fireKey = type; 
+    if (type === 'planner') fireKey = 'planner_final';
+    if (type === 'profile') fireKey = 'profile_final';
+    if (type === 'weight') fireKey = 'weight_final';
+
+    if (user && db) setDoc(doc(db, "users", user.uid, "data", fireKey), { [key]: data }, { merge: true });
+    else localStorage.setItem(`mp_${type}_final`, JSON.stringify(data));
   };
 
-  const updatePlanner = (d: PlannerData) => { setPlannerData(d); saveData('planner_v8', d); };
+  const updatePlanner = (d: PlannerData) => { setPlannerData(d); saveData('planner', d); };
   const dayStats = getDayStats(plannerData[currentDayStr], products);
   const t = TRANSLATIONS[lang];
 
