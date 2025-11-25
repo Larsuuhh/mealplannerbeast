@@ -84,7 +84,7 @@ const TRANSLATIONS = {
     tab_meals: 'Meals', tab_products: 'Products', add_to_planner: 'Add',
     slot_ochtend: 'Breakfast', slot_middag: 'Lunch', slot_avond: 'Dinner', slot_snack: 'Snack',
     no_data: 'No items found', firebase_connected: 'Logged In', based_on: 'Based on TDEE',
-    adjust_portion: 'Adjust Portion', close: 'Close', total_calc: 'Total'
+    adjust_portion: 'Adjust portion', close: 'Close', total_calc: 'Total'
   },
   nl: {
     planner: 'Planner', meals: 'Maaltijden', products: 'Producten', profile: 'Profiel', login: 'Inloggen', register: 'Registreren', logout: 'Uitloggen',
@@ -184,7 +184,7 @@ const Option = ({ value, children }: { value: string | number, children: React.R
     </option>
 );
 
-// FIX: Select component met appearance-none om dubbele pijltjes te voorkomen
+// FIX: Verbeterde Select om dubbele pijltjes te verwijderen
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">
       <select 
@@ -192,9 +192,9 @@ const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
         className={`w-full p-2 pr-8 border rounded-lg text-base bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white appearance-none ${props.className || ''}`}
         style={{ 
             fontSize: '16px', 
-            backgroundImage: 'none',
-            WebkitAppearance: 'none',
-            MozAppearance: 'none'
+            backgroundImage: 'none', // Verberg standaard pijl
+            WebkitAppearance: 'none', // Safari/Chrome fix
+            MozAppearance: 'none' // Firefox fix
         }} 
       >
         {props.children}
@@ -202,7 +202,6 @@ const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
       <ChevronDown size={16} className="absolute right-2 top-3.5 text-slate-500 dark:text-white pointer-events-none" />
   </div>
 );
-
 
 // --- GRAFIEK COMPONENT ---
 const WeightChart = ({ history }: { history: WeightEntry[] }) => {
@@ -212,7 +211,7 @@ const WeightChart = ({ history }: { history: WeightEntry[] }) => {
   const maxW = Math.max(...sorted.map(x => x.weight)) + 1;
   const range = maxW - minW;
   
-  const points = sorted.map((entry, i) => {
+  const points = sorted.map((entry: WeightEntry, i: number) => {
     const x = (i / (sorted.length - 1)) * 100;
     const y = 100 - ((entry.weight - minW) / range) * 100;
     return `${x},${y}`;
@@ -222,7 +221,7 @@ const WeightChart = ({ history }: { history: WeightEntry[] }) => {
     <div className="w-full h-32 mt-4 relative border-l border-b border-slate-200 dark:border-slate-600">
       <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
         <polyline fill="none" stroke="#3b82f6" strokeWidth="2" points={points} vectorEffect="non-scaling-stroke" />
-        {sorted.map((entry, i) => {
+        {sorted.map((entry: WeightEntry, i: number) => {
            const x = (i / (sorted.length - 1)) * 100;
            const y = 100 - ((entry.weight - minW) / range) * 100;
            return <circle key={i} cx={x} cy={y} r="1.5" className="fill-blue-600" vectorEffect="non-scaling-stroke" />
@@ -651,7 +650,6 @@ const MealManager = ({ meals, setMeals, products, lang }: any) => {
            </div>
            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 space-y-4">
               <Input value={currentMeal.title} onChange={e => setEditor({...currentMeal, title: e.target.value})} placeholder={t.name} className="font-bold" />
-              {/* CATEGORIE KIEZER VERWIJDERD IN DE EDITOR */}
               <div className="flex items-center gap-2 cursor-pointer" onClick={() => setEditor({...currentMeal, isFavorite: !currentMeal.isFavorite})}>
                  <Heart size={20} className={currentMeal.isFavorite ? "fill-red-500 text-red-500" : "text-slate-400"} />
                  <span className="text-sm dark:text-white">Favoriet</span>
@@ -951,7 +949,7 @@ const App = () => {
   const [view, setView] = useState('planner');
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   const [meals, setMeals] = useState<Meal[]>(DEFAULT_MEALS);
-  // GEWIJZIGD: Key 'mealplanner_data_final'
+  // GEWIJZIGD: Key 'mealplanner_data_v9' om reset te voorkomen
   const [plannerData, setPlannerData] = useState<PlannerData>({});
   const [currentDayStr, setCurrentDayStr] = useState<string>(getISODate(new Date()));
   const [userProfile, setUserProfile] = useState<UserProfile>({ weight: 105, height: 193, age: 22, gender: 'man', activity: 3, targetKcal: 2500, targetProtein: 215 });
@@ -959,23 +957,23 @@ const App = () => {
 
   useEffect(() => { if (auth) return onAuthStateChanged(auth, (u) => setUser(u)); }, []);
 
-  // Data sync: Using FINAL keys
+  // Data sync: Using version 9 keys to avoid data corruption
   useEffect(() => {
     if (user && db) {
        const u1 = onSnapshot(doc(db, "users", user.uid, "data", "products"), s => s.exists() && setProducts(s.data().items));
        const u2 = onSnapshot(doc(db, "users", user.uid, "data", "meals"), s => s.exists() && setMeals(s.data().items));
-       const u3 = onSnapshot(doc(db, "users", user.uid, "data", "planner_final"), s => s.exists() && setPlannerData(s.data().items));
-       const u4 = onSnapshot(doc(db, "users", user.uid, "data", "profile_final"), s => s.exists() && setUserProfile(s.data().info));
-       const u5 = onSnapshot(doc(db, "users", user.uid, "data", "weight_final"), s => s.exists() && setWeightHistory(s.data().items));
+       const u3 = onSnapshot(doc(db, "users", user.uid, "data", "planner_v9"), s => s.exists() && setPlannerData(s.data().items));
+       const u4 = onSnapshot(doc(db, "users", user.uid, "data", "profile_stable"), s => s.exists() && setUserProfile(s.data().info));
+       const u5 = onSnapshot(doc(db, "users", user.uid, "data", "weight_stable"), s => s.exists() && setWeightHistory(s.data().items));
        return () => { u1(); u2(); u3(); u4(); u5(); };
     } else {
        const ls = (k:string) => localStorage.getItem(k);
        try {
-         if(ls('mp_products_final')) setProducts(JSON.parse(ls('mp_products_final')!));
-         if(ls('mp_meals_final')) setMeals(JSON.parse(ls('mp_meals_final')!));
-         if(ls('mp_planner_final')) setPlannerData(JSON.parse(ls('mp_planner_final')!));
-         if(ls('mp_profile_final')) setUserProfile(JSON.parse(ls('mp_profile_final')!));
-         if(ls('mp_weight_final')) setWeightHistory(JSON.parse(ls('mp_weight_final')!));
+         if(ls('mp_products_v9')) setProducts(JSON.parse(ls('mp_products_v9')!));
+         if(ls('mp_meals_v9')) setMeals(JSON.parse(ls('mp_meals_v9')!));
+         if(ls('mp_planner_v9')) setPlannerData(JSON.parse(ls('mp_planner_v9')!));
+         if(ls('mp_profile_v9')) setUserProfile(JSON.parse(ls('mp_profile_v9')!));
+         if(ls('mp_weight_v9')) setWeightHistory(JSON.parse(ls('mp_weight_v9')!));
        } catch(e) { console.error("Local load err", e); }
     }
   }, [user]);
@@ -983,12 +981,10 @@ const App = () => {
   const saveData = (type: string, data: any) => {
     let key = "items"; if(type === "profile") key = "info";
     let fireKey = type; 
-    if (type === 'planner') fireKey = 'planner_final';
-    if (type === 'profile') fireKey = 'profile_final';
-    if (type === 'weight') fireKey = 'weight_final';
+    if (type === 'planner') fireKey = 'planner_v9';
 
     if (user && db) setDoc(doc(db, "users", user.uid, "data", fireKey), { [key]: data }, { merge: true });
-    else localStorage.setItem(`mp_${type}_final`, JSON.stringify(data));
+    else localStorage.setItem(`my_${type}_v9`, JSON.stringify(data));
   };
 
   const updatePlanner = (d: PlannerData) => { setPlannerData(d); saveData('planner', d); };
