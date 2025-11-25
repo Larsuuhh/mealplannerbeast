@@ -84,7 +84,7 @@ const TRANSLATIONS = {
     tab_meals: 'Meals', tab_products: 'Products', add_to_planner: 'Add',
     slot_ochtend: 'Breakfast', slot_middag: 'Lunch', slot_avond: 'Dinner', slot_snack: 'Snack',
     no_data: 'No items found', firebase_connected: 'Logged In', based_on: 'Based on TDEE',
-    adjust_portion: 'Adjust portion', close: 'Close', total_calc: 'Total'
+    adjust_portion: 'Adjust Portion', close: 'Close', total_calc: 'Total'
   },
   nl: {
     planner: 'Planner', meals: 'Maaltijden', products: 'Producten', profile: 'Profiel', login: 'Inloggen', register: 'Registreren', logout: 'Uitloggen',
@@ -97,7 +97,7 @@ const TRANSLATIONS = {
     day_total: 'Dag totaal', choose: 'Kies', sort_fav: 'Favorieten eerst', week_prev: 'Vorige', week_next: 'Volgende', today: 'Vandaag',
     per_week: 'per week', per_month: 'per maand', toggle_period: 'Wijzig periode',
     male: 'Man', female: 'Vrouw',
-    act_sedentary: 'Weinig (kantoor)', act_light: 'Licht (1-3x sport)', act_moderate: 'Gemiddeld (3-5x)', act_active: 'Zwaar (6-7x)', act_very_active: 'Fysiek werk / atleet',
+    act_sedentary: 'Weinig (Kantoor)', act_light: 'Licht (1-3x sport)', act_moderate: 'Gemiddeld (3-5x)', act_active: 'Zwaar (6-7x)', act_very_active: 'Fysiek werk / atleet',
     sort_name: 'Naam (A-Z)', sort_protein: 'Eiwit (hoog)', sort_kcal: 'Kcal (hoog)', sort_price_low: 'Prijs (laag)', sort_price_high: 'Prijs (hoog)',
     tab_meals: 'Maaltijden', tab_products: 'Producten', add_to_planner: 'Toevoegen',
     slot_ochtend: 'Ochtend', slot_middag: 'Middag', slot_avond: 'Avond', slot_snack: 'Snack',
@@ -184,17 +184,17 @@ const Option = ({ value, children }: { value: string | number, children: React.R
     </option>
 );
 
-// FIX: Verbeterde Select om dubbele pijltjes te verwijderen
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">
       <select 
         {...props} 
-        className={`w-full p-2 pr-8 border rounded-lg text-base bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white appearance-none ${props.className || ''}`}
+        className={`w-full p-2 pr-8 border rounded-lg text-base bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white ${props.className || ''}`}
         style={{ 
             fontSize: '16px', 
-            backgroundImage: 'none', // Verberg standaard pijl
-            WebkitAppearance: 'none', // Safari/Chrome fix
-            MozAppearance: 'none' // Firefox fix
+            backgroundImage: 'none',
+            WebkitAppearance: 'none',
+            MozAppearance: 'none',
+            appearance: 'none'
         }} 
       >
         {props.children}
@@ -202,6 +202,7 @@ const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
       <ChevronDown size={16} className="absolute right-2 top-3.5 text-slate-500 dark:text-white pointer-events-none" />
   </div>
 );
+
 
 // --- GRAFIEK COMPONENT ---
 const WeightChart = ({ history }: { history: WeightEntry[] }) => {
@@ -211,6 +212,7 @@ const WeightChart = ({ history }: { history: WeightEntry[] }) => {
   const maxW = Math.max(...sorted.map(x => x.weight)) + 1;
   const range = maxW - minW;
   
+  // FIX: EXPLICIETE TYPES (number) VOOR 'i'
   const points = sorted.map((entry: WeightEntry, i: number) => {
     const x = (i / (sorted.length - 1)) * 100;
     const y = 100 - ((entry.weight - minW) / range) * 100;
@@ -362,7 +364,7 @@ const ProfileManager = ({ userProfile, setUserProfile, weightHistory, setWeightH
             <button onClick={handleSaveWeight} className="bg-purple-600 text-white px-4 rounded-lg font-bold">{editingIndex !== null ? t.update : t.log}</button>
          </div>
          <div className="max-h-40 overflow-y-auto space-y-1">
-            {weightHistory.map((e:any, i:number) => (
+            {weightHistory.map((e:WeightEntry, i:number) => (
                <div key={i} className={`flex justify-between items-center p-2 rounded-lg border ${editingIndex === i ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-700'}`}>
                   <div className="flex items-center gap-3">
                       <span className="text-slate-500 dark:text-slate-300 text-sm">{e.date}</span>
@@ -719,7 +721,7 @@ const MealManager = ({ meals, setMeals, products, lang }: any) => {
   );
 };
 
-// --- ITEM EDITOR POPUP (In Planner) ---
+// --- PORTIE EDITOR POPUP (In Planner) ---
 const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) => {
   const [prods, setProds] = useState<MealProduct[]>([]);
 
@@ -832,21 +834,24 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
   };
 
   const updateItem = (updatedItem: PlannerItem) => {
-      const dayItems = plannerData[currentDayStr] || {};
-      let foundSlot: Slot | null = null;
-      
-      (Object.keys(dayItems) as Slot[]).forEach(slot => {
-          if (dayItems[slot]?.some(i => i.instanceId === updatedItem.instanceId)) {
-              foundSlot = slot;
-          }
-      });
+   const dayItems = plannerData[currentDayStr] || {};
+   let foundSlot: Slot | null = null;
 
-      if (foundSlot) {
-          const newItems = dayItems[foundSlot]!.map(i => i.instanceId === updatedItem.instanceId ? updatedItem : i);
-          const newDayData = { ...dayItems, [foundSlot]: newItems };
-          setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
-      }
-  };
+   (Object.keys(dayItems) as Slot[]).forEach((slot: Slot) => {
+       if (dayItems[slot]?.some((i: PlannerItem) => i.instanceId === updatedItem.instanceId)) {
+           foundSlot = slot;
+       }
+   });
+
+   if (foundSlot) {
+       const newItems = dayItems[foundSlot]!.map((i: PlannerItem) =>
+           i.instanceId === updatedItem.instanceId ? updatedItem : i
+       );
+
+       const newDayData = { ...dayItems, [foundSlot]: newItems };
+       setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
+   }
+};
   
   const dayData = plannerData[currentDayStr] || {};
 
