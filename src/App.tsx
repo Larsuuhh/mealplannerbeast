@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
+import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import {
   Utensils,
   Coffee,
   Sun,
   Moon,
   RotateCcw,
-  Copy,
-  Check,
   Plus,
   Trash2,
   Save,
@@ -16,7 +14,6 @@ import {
   ArrowLeft,
   X,
   ChevronDown,
-  ArrowUpDown,
   User,
   Calendar,
   TrendingDown,
@@ -31,7 +28,6 @@ import {
   Heart,
   ChevronLeft,
   ChevronRight,
-  XCircle,
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -44,13 +40,7 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  onSnapshot,
-} from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // --- CONFIGURATIE ---
 const firebaseConfig = {
@@ -276,12 +266,12 @@ const TRANSLATIONS = {
     tab_meals: 'Meals',
     tab_products: 'Products',
     add_to_planner: 'Add',
-    // Slot namen voor weergave (gebruik unieke keys voor mapping indien nodig, maar hier gebruiken we de bestaande keys)
-    slot_ochtend: 'Breakfast',
-    slot_middag: 'Lunch',
-    slot_avond: 'Dinner',
-    slot_snack: 'Snack',
+    ochtend: 'Breakfast',
+    middag: 'Lunch',
+    avond: 'Dinner', // snack verwijderd (dubbel)
     no_data: 'No items found',
+    firebase_connected: 'Logged In',
+    based_on: 'Based on TDEE',
   },
   nl: {
     planner: 'Planner',
@@ -357,11 +347,12 @@ const TRANSLATIONS = {
     tab_meals: 'Maaltijden',
     tab_products: 'Producten',
     add_to_planner: 'Toevoegen',
-    slot_ochtend: 'Ochtend',
-    slot_middag: 'Middag',
-    slot_avond: 'Avond',
-    slot_snack: 'Snack',
+    ochtend: 'Ochtend',
+    middag: 'Middag',
+    avond: 'Avond', // snack verwijderd (dubbel)
     no_data: 'Geen items gevonden',
+    firebase_connected: 'Ingelogd',
+    based_on: 'Gebaseerd op TDEE',
   },
 };
 
@@ -453,21 +444,7 @@ const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   />
 );
 
-const Option = ({
-  value,
-  children,
-}: {
-  value: string | number;
-  children: React.ReactNode;
-}) => (
-  <option
-    value={value}
-    className="text-slate-900 bg-white dark:text-white dark:bg-slate-800"
-  >
-    {children}
-  </option>
-);
-
+// FIX: Select component met harde kleuren op de <option> tags
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">
     <select
@@ -547,9 +524,11 @@ const AuthManager = ({ user, lang }: any) => {
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const t = TRANSLATIONS[lang as Language];
   const handleAuth = async () => {
     setError('');
+    setLoading(true);
     try {
       if (isRegistering)
         await createUserWithEmailAndPassword(auth, email, password);
@@ -557,12 +536,15 @@ const AuthManager = ({ user, lang }: any) => {
     } catch (e: any) {
       setError(e.message);
     }
+    setLoading(false);
   };
   if (user)
     return (
       <div className="bg-blue-50 dark:bg-slate-800 p-4 rounded-xl mb-6 flex justify-between items-center border border-blue-100 dark:border-slate-700">
         <div>
-          <h3 className="font-bold text-blue-900 dark:text-white">Ingelogd</h3>
+          <h3 className="font-bold text-blue-900 dark:text-white">
+            {t.firebase_connected}
+          </h3>
           <p className="text-xs text-blue-700 dark:text-slate-400">
             {user.email}
           </p>
@@ -595,9 +577,15 @@ const AuthManager = ({ user, lang }: any) => {
         <p className="text-xs text-red-500">{error}</p>
         <button
           onClick={handleAuth}
-          className="w-full py-2 bg-blue-600 text-white rounded font-bold"
+          className="w-full py-2 bg-blue-600 text-white rounded font-bold flex justify-center items-center gap-2"
         >
-          {isRegistering ? t.register : t.login}
+          {loading ? (
+            <Loader className="animate-spin" size={16} />
+          ) : isRegistering ? (
+            t.register
+          ) : (
+            t.login
+          )}
         </button>
         <button
           onClick={() => setIsRegistering(!isRegistering)}
@@ -636,6 +624,7 @@ const ProfileManager = ({
   const displayedLoss = period === 'week' ? weeklyLoss : weeklyLoss * 4.33;
 
   const t = TRANSLATIONS[lang as Language];
+  const optionClass = 'text-black bg-white dark:text-white dark:bg-slate-800';
 
   const handleSaveWeight = () => {
     if (!newWeight) return;
@@ -692,8 +681,12 @@ const ProfileManager = ({
                 setUserProfile({ ...userProfile, gender: e.target.value })
               }
             >
-              <Option value="man">{t.male}</Option>
-              <Option value="vrouw">{t.female}</Option>
+              <option value="man" className={optionClass}>
+                {t.male}
+              </option>
+              <option value="vrouw" className={optionClass}>
+                {t.female}
+              </option>
             </Select>
           </div>
 
@@ -707,11 +700,21 @@ const ProfileManager = ({
                 setUserProfile({ ...userProfile, activity: +e.target.value })
               }
             >
-              <Option value="1">{t.act_sedentary}</Option>
-              <Option value="2">{t.act_light}</Option>
-              <Option value="3">{t.act_moderate}</Option>
-              <Option value="4">{t.act_active}</Option>
-              <Option value="5">{t.act_very_active}</Option>
+              <option value="1" className={optionClass}>
+                {t.act_sedentary}
+              </option>
+              <option value="2" className={optionClass}>
+                {t.act_light}
+              </option>
+              <option value="3" className={optionClass}>
+                {t.act_moderate}
+              </option>
+              <option value="4" className={optionClass}>
+                {t.act_active}
+              </option>
+              <option value="5" className={optionClass}>
+                {t.act_very_active}
+              </option>
             </Select>
           </div>
 
@@ -932,7 +935,7 @@ const ItemSelector = ({
       <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
         <div className="p-4 border-b dark:border-slate-700 flex justify-between items-center">
           <h3 className="font-bold dark:text-white">
-            {t.choose} {t[('slot_' + category) as keyof typeof t]}
+            {t.choose} {t[('slot_' + category) as keyof typeof t] || category}
           </h3>
           <button onClick={onClose}>
             <X size={20} className="dark:text-white" />
@@ -1067,6 +1070,7 @@ const ProductDatabase = ({
   const [sortType, setSortType] = useState('name');
   const [editingId, setEditingId] = useState<string | null>(null);
   const t = TRANSLATIONS[lang as Language];
+  const optionClass = 'text-black bg-white dark:text-white dark:bg-slate-800';
 
   const handleSaveProduct = () => {
     if (!newP.name) return;
@@ -1198,9 +1202,9 @@ const ProductDatabase = ({
             </label>
             <Select value={unitT} onChange={(e) => setUnitT(e.target.value)}>
               {UNIT_TYPES.map((u) => (
-                <Option key={u} value={u}>
+                <option key={u} value={u} className={optionClass}>
                   {u}
-                </Option>
+                </option>
               ))}
             </Select>
           </div>
@@ -1262,11 +1266,21 @@ const ProductDatabase = ({
             value={sortType}
             onChange={(e) => setSortType(e.target.value)}
           >
-            <Option value="name">{t.sort_name}</Option>
-            <Option value="price-low">{t.sort_price_low}</Option>
-            <Option value="price-high">{t.sort_price_high}</Option>
-            <Option value="protein-high">{t.sort_protein}</Option>
-            <Option value="kcal-high">{t.sort_kcal}</Option>
+            <option value="name" className={optionClass}>
+              {t.sort_name}
+            </option>
+            <option value="price-low" className={optionClass}>
+              {t.sort_price_low}
+            </option>
+            <option value="price-high" className={optionClass}>
+              {t.sort_price_high}
+            </option>
+            <option value="protein-high" className={optionClass}>
+              {t.sort_protein}
+            </option>
+            <option value="kcal-high" className={optionClass}>
+              {t.sort_kcal}
+            </option>
           </Select>
         </div>
       </div>
@@ -1779,6 +1793,7 @@ const App = () => {
   const [view, setView] = useState('planner');
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   const [meals, setMeals] = useState<Meal[]>(DEFAULT_MEALS);
+  // GEWIJZIGD: Key 'mealplanner_data_stable' om reset te voorkomen
   const [plannerData, setPlannerData] = useState<PlannerData>({});
   const [currentDayStr, setCurrentDayStr] = useState<string>(
     getISODate(new Date())
@@ -1798,7 +1813,7 @@ const App = () => {
     if (auth) return onAuthStateChanged(auth, (u) => setUser(u));
   }, []);
 
-  // Data sync: Using version 8 keys to avoid data corruption
+  // Data sync
   useEffect(() => {
     if (user && db) {
       const u1 = onSnapshot(
@@ -1810,15 +1825,15 @@ const App = () => {
         (s) => s.exists() && setMeals(s.data().items)
       );
       const u3 = onSnapshot(
-        doc(db, 'users', user.uid, 'data', 'planner_v8'),
+        doc(db, 'users', user.uid, 'data', 'planner_stable'),
         (s) => s.exists() && setPlannerData(s.data().items)
       );
       const u4 = onSnapshot(
-        doc(db, 'users', user.uid, 'data', 'profile'),
+        doc(db, 'users', user.uid, 'data', 'profile_stable'),
         (s) => s.exists() && setUserProfile(s.data().info)
       );
       const u5 = onSnapshot(
-        doc(db, 'users', user.uid, 'data', 'weight'),
+        doc(db, 'users', user.uid, 'data', 'weight_stable'),
         (s) => s.exists() && setWeightHistory(s.data().items)
       );
       return () => {
@@ -1831,15 +1846,15 @@ const App = () => {
     } else {
       const ls = (k: string) => localStorage.getItem(k);
       try {
-        if (ls('my_products_v8'))
-          setProducts(JSON.parse(ls('my_products_v8')!));
-        if (ls('my_meals_v8')) setMeals(JSON.parse(ls('my_meals_v8')!));
-        if (ls('my_planner_v8'))
-          setPlannerData(JSON.parse(ls('my_planner_v8')!));
-        if (ls('my_profile_v8'))
-          setUserProfile(JSON.parse(ls('my_profile_v8')!));
-        if (ls('my_weight_v8'))
-          setWeightHistory(JSON.parse(ls('my_weight_v8')!));
+        if (ls('mp_products_stable'))
+          setProducts(JSON.parse(ls('mp_products_stable')!));
+        if (ls('mp_meals_stable')) setMeals(JSON.parse(ls('mp_meals_stable')!));
+        if (ls('mp_planner_stable'))
+          setPlannerData(JSON.parse(ls('mp_planner_stable')!));
+        if (ls('mp_profile_stable'))
+          setUserProfile(JSON.parse(ls('mp_profile_stable')!));
+        if (ls('mp_weight_stable'))
+          setWeightHistory(JSON.parse(ls('mp_weight_stable')!));
       } catch (e) {
         console.error('Local load err', e);
       }
@@ -1847,20 +1862,36 @@ const App = () => {
   }, [user]);
 
   const saveData = (type: string, data: any) => {
-    let key = 'items';
-    if (type === 'profile') key = 'info';
-    if (user && db)
+    let fireKey = type;
+    let localKey = `mp_${type}_stable`;
+
+    // Mapping
+    if (type === 'planner') fireKey = 'planner_stable';
+    if (type === 'profile') {
+      fireKey = 'profile_stable';
+    }
+    if (type === 'weight') {
+      fireKey = 'weight_stable';
+    }
+
+    let payloadKey = 'items';
+    if (type === 'profile') payloadKey = 'info';
+
+    if (user && db) {
       setDoc(
-        doc(db, 'users', user.uid, 'data', type),
-        { [key]: data },
+        doc(db, 'users', user.uid, 'data', fireKey),
+        { [payloadKey]: data },
         { merge: true }
       );
-    else localStorage.setItem(`my_${type}_v8`, JSON.stringify(data));
+    } else {
+      localStorage.setItem(localKey, JSON.stringify(data));
+    }
   };
 
+  // Wrappers
   const updatePlanner = (d: PlannerData) => {
     setPlannerData(d);
-    saveData('planner_v8', d);
+    saveData('planner', d);
   };
   const dayStats = getDayStats(plannerData[currentDayStr], products);
   const t = TRANSLATIONS[lang];
