@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { 
-  Utensils, Coffee, Sun, Moon, RotateCcw, 
+  Utensils, Coffee, Sun, Moon, RotateCcw, Copy, Check, 
   Plus, Trash2, Save, Edit2, ShoppingBag, Image as ImageIcon, 
-  ArrowLeft, X, ChevronDown, User, Calendar, TrendingDown, Activity, Search, Upload, LogOut, LogIn, Loader, AlertTriangle, Globe, Heart, ChevronLeft, ChevronRight
+  ArrowLeft, X, ChevronDown, ArrowUpDown, User, Calendar, TrendingDown, Activity, Search, Upload, LogOut, LogIn, Loader, AlertTriangle, Globe, Heart, ChevronLeft, ChevronRight, XCircle, Scale
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 // --- CONFIGURATIE ---
 const firebaseConfig = {
@@ -82,8 +82,9 @@ const TRANSLATIONS = {
     act_sedentary: 'Sedentary (Office)', act_light: 'Light (1-3x sport)', act_moderate: 'Moderate (3-5x)', act_active: 'Active (6-7x)', act_very_active: 'Very Active / Athlete',
     sort_name: 'Name (A-Z)', sort_protein: 'Protein (High)', sort_kcal: 'Kcal (High)', sort_price_low: 'Price (Low)', sort_price_high: 'Price (High)',
     tab_meals: 'Meals', tab_products: 'Products', add_to_planner: 'Add',
-    ochtend: 'Breakfast', middag: 'Lunch', avond: 'Dinner', // snack verwijderd (dubbel)
-    no_data: 'No items found', firebase_connected: 'Logged In', based_on: 'Based on TDEE'
+    ochtend: 'Breakfast', middag: 'Lunch', avond: 'Dinner',
+    no_data: 'No items found', firebase_connected: 'Logged In', based_on: 'Based on TDEE',
+    adjust_portion: 'Adjust Portion', close: 'Close'
   },
   nl: {
     planner: 'Planner', meals: 'Maaltijden', products: 'Producten', profile: 'Profiel', login: 'Inloggen', register: 'Registreren', logout: 'Uitloggen',
@@ -99,8 +100,9 @@ const TRANSLATIONS = {
     act_sedentary: 'Weinig (Kantoor)', act_light: 'Licht (1-3x sport)', act_moderate: 'Gemiddeld (3-5x)', act_active: 'Zwaar (6-7x)', act_very_active: 'Fysiek Werk / Atleet',
     sort_name: 'Naam (A-Z)', sort_protein: 'Eiwit (Hoog)', sort_kcal: 'Kcal (Hoog)', sort_price_low: 'Prijs (Laag)', sort_price_high: 'Prijs (Hoog)',
     tab_meals: 'Maaltijden', tab_products: 'Producten', add_to_planner: 'Toevoegen',
-    ochtend: 'Ochtend', middag: 'Middag', avond: 'Avond', // snack verwijderd (dubbel)
-    no_data: 'Geen items gevonden', firebase_connected: 'Ingelogd', based_on: 'Gebaseerd op TDEE'
+    ochtend: 'Ochtend', middag: 'Middag', avond: 'Avond',
+    no_data: 'Geen items gevonden', firebase_connected: 'Ingelogd', based_on: 'Gebaseerd op TDEE',
+    adjust_portion: 'Portie Aanpassen', close: 'Sluiten'
   }
 };
 
@@ -165,7 +167,12 @@ const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input {...props} className={`w-full p-2 border rounded-lg text-base bg-white text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white placeholder:text-slate-400 ${props.className || ''}`} style={{ fontSize: '16px' }} />
 );
 
-// FIX: Select component met harde kleuren op de <option> tags
+const Option = ({ value, children }: { value: string | number, children: React.ReactNode }) => (
+    <option value={value} className="text-slate-900 bg-white dark:text-white dark:bg-slate-800">
+        {children}
+    </option>
+);
+
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">
       <select 
@@ -178,6 +185,7 @@ const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
       <ChevronDown size={16} className="absolute right-2 top-3.5 text-slate-500 dark:text-white pointer-events-none" />
   </div>
 );
+
 
 // --- GRAFIEK COMPONENT ---
 const WeightChart = ({ history }: { history: WeightEntry[] }) => {
@@ -242,7 +250,6 @@ const ProfileManager = ({ userProfile, setUserProfile, weightHistory, setWeightH
   const displayedLoss = period === 'week' ? weeklyLoss : weeklyLoss * 4.33;
 
   const t = TRANSLATIONS[lang as Language];
-  const optionClass = "text-black bg-white dark:text-white dark:bg-slate-800";
 
   const handleSaveWeight = () => {
     if (!newWeight) return;
@@ -283,19 +290,19 @@ const ProfileManager = ({ userProfile, setUserProfile, weightHistory, setWeightH
            <div>
              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t.gender}</label>
              <Select value={userProfile.gender} onChange={(e) => setUserProfile({...userProfile, gender: e.target.value})}>
-                  <option value="man" className={optionClass}>{t.male}</option>
-                  <option value="vrouw" className={optionClass}>{t.female}</option>
+                  <Option value="man">{t.male}</Option>
+                  <Option value="vrouw">{t.female}</Option>
              </Select>
            </div>
            
            <div>
              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{t.activity}</label>
              <Select value={String(userProfile.activity)} onChange={(e) => setUserProfile({...userProfile, activity: +e.target.value})}>
-                  <option value="1" className={optionClass}>{t.act_sedentary}</option>
-                  <option value="2" className={optionClass}>{t.act_light}</option>
-                  <option value="3" className={optionClass}>{t.act_moderate}</option>
-                  <option value="4" className={optionClass}>{t.act_active}</option>
-                  <option value="5" className={optionClass}>{t.act_very_active}</option>
+                  <Option value="1">{t.act_sedentary}</Option>
+                  <Option value="2">{t.act_light}</Option>
+                  <Option value="3">{t.act_moderate}</Option>
+                  <Option value="4">{t.act_active}</Option>
+                  <Option value="5">{t.act_very_active}</Option>
              </Select>
            </div>
 
@@ -398,7 +405,7 @@ const ItemSelector = ({ isOpen, onClose, category, meals, products, onSelect, la
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-end md:items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
         <div className="p-4 border-b dark:border-slate-700 flex justify-between items-center">
-            <h3 className="font-bold dark:text-white">{t.choose} {t[("slot_" + category) as keyof typeof t] || category}</h3>
+            <h3 className="font-bold dark:text-white">{t.choose} {t[category] || category}</h3>
             <button onClick={onClose}><X size={20} className="dark:text-white"/></button>
         </div>
         
@@ -469,7 +476,6 @@ const ProductDatabase = ({ products, setProducts, meals, setMeals, lang, darkMod
   const [sortType, setSortType] = useState('name');
   const [editingId, setEditingId] = useState<string | null>(null);
   const t = TRANSLATIONS[lang as Language];
-  const optionClass = "text-black bg-white dark:text-white dark:bg-slate-800";
   
   const handleSaveProduct = () => {
     if (!newP.name) return;
@@ -537,7 +543,7 @@ const ProductDatabase = ({ products, setProducts, meals, setMeals, lang, darkMod
              <div>
                <label className="text-[10px] font-bold text-slate-400 uppercase">{t.unit_type}</label>
                <Select value={unitT} onChange={e => setUnitT(e.target.value)}>
-                 {UNIT_TYPES.map(u => <option key={u} value={u} className={optionClass}>{u}</option>)}
+                 {UNIT_TYPES.map(u => <Option key={u} value={u}>{u}</Option>)}
                </Select>
              </div>
              <div><label className="text-[10px] font-bold text-slate-400 uppercase">{t.price}</label><Input type="number" value={newP.price||''} onChange={e => setNewP({...newP, price: +e.target.value})} /></div>
@@ -554,11 +560,11 @@ const ProductDatabase = ({ products, setProducts, meals, setMeals, lang, darkMod
          <h3 className="font-bold text-slate-700 dark:text-slate-300">{t.all_products} ({products.length})</h3>
          <div className="relative w-40">
            <Select value={sortType} onChange={(e) => setSortType(e.target.value)}>
-             <option value="name" className={optionClass}>{t.sort_name}</option>
-             <option value="price-low" className={optionClass}>{t.sort_price_low}</option>
-             <option value="price-high" className={optionClass}>{t.sort_price_high}</option>
-             <option value="protein-high" className={optionClass}>{t.sort_protein}</option>
-             <option value="kcal-high" className={optionClass}>{t.sort_kcal}</option>
+             <Option value="name">{t.sort_name}</Option>
+             <Option value="price-low">{t.sort_price_low}</Option>
+             <Option value="price-high">{t.sort_price_high}</Option>
+             <Option value="protein-high">{t.sort_protein}</Option>
+             <Option value="kcal-high">{t.sort_kcal}</Option>
            </Select>
          </div>
        </div>
@@ -697,9 +703,67 @@ const MealManager = ({ meals, setMeals, products, lang }: any) => {
   );
 };
 
+// --- ITEM EDITOR POPUP (In Planner) ---
+const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) => {
+  const [prods, setProds] = useState<MealProduct[]>([]);
+
+  useEffect(() => {
+     if (item && item.products) setProds([...item.products]);
+  }, [item]);
+
+  if (!isOpen || !item) return null;
+
+  const updateAmount = (pid: string, val: number) => {
+      const newProds = val <= 0 
+         ? prods.filter(x => x.productId !== pid)
+         : prods.map(x => x.productId === pid ? { ...x, amount: val } : x);
+      setProds(newProds);
+  };
+
+  const save = () => {
+      const updatedItem = { ...item, products: prods };
+      onSave(updatedItem);
+      onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+       <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-4 space-y-4">
+           <div className="flex justify-between items-center border-b dark:border-slate-700 pb-2">
+               <h3 className="font-bold text-lg dark:text-white">{item.title}</h3>
+               <button onClick={onClose}><X size={20} className="dark:text-white"/></button>
+           </div>
+           <p className="text-xs text-slate-500 dark:text-slate-400 italic">{t.adjust_portion}</p>
+           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+               {prods.map(p => {
+                   const prodInfo = products.find((x:any) => x.id === p.productId);
+                   if (!prodInfo) return null;
+                   return (
+                       <div key={p.productId} className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 p-2 rounded">
+                           <div className="text-sm font-bold dark:text-white">{prodInfo.name}</div>
+                           <div className="flex items-center gap-2">
+                               <input 
+                                  type="number" 
+                                  className="w-16 p-1 border rounded text-right dark:bg-slate-600 dark:text-white" 
+                                  value={p.amount} 
+                                  onChange={e => updateAmount(p.productId, +e.target.value)}
+                               />
+                               <span className="text-xs text-slate-500">x {prodInfo.unit}</span>
+                           </div>
+                       </div>
+                   )
+               })}
+           </div>
+           <button onClick={save} className="w-full py-2 bg-blue-600 text-white font-bold rounded-lg">{t.save}</button>
+       </div>
+    </div>
+  );
+};
+
 // --- PLANNER ---
 const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurrentDayStr, meals, lang, darkMode }: any) => {
   const [selectorCat, setSelectorCat] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<PlannerItem | null>(null); // Voor pop-up
   const t = TRANSLATIONS[lang as Language];
   
   // Helper: Date formatting
@@ -735,6 +799,26 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
      const newItems = currentItems.filter((item: PlannerItem) => item.instanceId !== instanceId);
      const newDayData = { ...(plannerData[currentDayStr] || {}), [slot]: newItems };
      setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
+  };
+
+  const updateItem = (updatedItem: PlannerItem) => {
+      // Zoek in welk slot dit item zat (beetje inefficiënt maar werkt prima voor kleine data)
+      // We weten niet welk slot het was, dus checken we ze allemaal.
+      const dayItems = plannerData[currentDayStr] || {};
+      let foundSlot: Slot | null = null;
+      
+      // Vind slot
+      (Object.keys(dayItems) as Slot[]).forEach(slot => {
+          if (dayItems[slot]?.some(i => i.instanceId === updatedItem.instanceId)) {
+              foundSlot = slot;
+          }
+      });
+
+      if (foundSlot) {
+          const newItems = dayItems[foundSlot]!.map(i => i.instanceId === updatedItem.instanceId ? updatedItem : i);
+          const newDayData = { ...dayItems, [foundSlot]: newItems };
+          setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
+      }
   };
   
   const dayData = plannerData[currentDayStr] || {};
@@ -786,17 +870,21 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
                    {Array.isArray(items) && items.map((item, idx) => {
                        const st = calculateMealStats(item, products);
                        return (
-                          <div key={item.instanceId} className="p-3 bg-blue-50 dark:bg-slate-700/50 border border-blue-100 dark:border-slate-600 rounded-xl flex justify-between items-center">
+                          <div 
+                              key={item.instanceId} 
+                              onClick={() => setEditingItem(item)} // OPEN EDIT MODAL
+                              className="p-3 bg-blue-50 dark:bg-slate-700/50 border border-blue-100 dark:border-slate-600 rounded-xl flex justify-between items-center cursor-pointer hover:border-blue-300 transition"
+                          >
                              <div>
-                                 <div className="font-bold text-blue-900 dark:text-white">{item.title}</div>
-                                 <div className="text-xs text-blue-600 dark:text-blue-300">{st.k} kcal | {st.p}g</div>
+                                 <div className="font-bold text-blue-900 dark:text-white flex items-center gap-2">
+                                     {item.title} <Scale size={12} className="text-slate-400"/>
+                                 </div>
+                                 <div className="text-xs text-blue-600 dark:text-blue-300">{st.k} kcal | {st.p}g | €{st.c.toFixed(2)}</div>
                              </div>
-                             <button onClick={() => removeItem(s.key, item.instanceId)} className="text-blue-300 hover:text-red-500 p-2"><X size={16}/></button>
+                             <button onClick={(e) => { e.stopPropagation(); removeItem(s.key, item.instanceId)}} className="text-blue-300 hover:text-red-500 p-2"><X size={16}/></button>
                           </div>
                        );
                    })}
-                   
-                   {/* Add Button */}
                    <button onClick={() => setSelectorCat(s.key)} className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 flex items-center justify-center gap-2 hover:border-blue-400 hover:text-blue-500 transition">
                        <Plus size={16}/> {t.add}
                    </button>
@@ -806,6 +894,16 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
        })}
 
        <ItemSelector isOpen={!!selectorCat} onClose={() => setSelectorCat(null)} category={selectorCat} meals={meals} products={products} onSelect={handleSelect} lang={lang} />
+       
+       {/* DE NIEUWE PORTIE EDITOR POPUP */}
+       <PlannerItemEditor 
+          isOpen={!!editingItem} 
+          item={editingItem} 
+          products={products} 
+          onSave={updateItem} 
+          onClose={() => setEditingItem(null)} 
+          t={t} 
+       />
     </div>
   );
 };
@@ -824,7 +922,6 @@ const App = () => {
   const [view, setView] = useState('planner');
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   const [meals, setMeals] = useState<Meal[]>(DEFAULT_MEALS);
-  // GEWIJZIGD: Key 'mealplanner_data_stable' om reset te voorkomen
   const [plannerData, setPlannerData] = useState<PlannerData>({});
   const [currentDayStr, setCurrentDayStr] = useState<string>(getISODate(new Date()));
   const [userProfile, setUserProfile] = useState<UserProfile>({ weight: 105, height: 193, age: 22, gender: 'man', activity: 3, targetKcal: 2500, targetProtein: 215 });
@@ -832,14 +929,14 @@ const App = () => {
 
   useEffect(() => { if (auth) return onAuthStateChanged(auth, (u) => setUser(u)); }, []);
 
-  // Data sync
+  // Data sync: Using version 8 keys to avoid data corruption
   useEffect(() => {
     if (user && db) {
        const u1 = onSnapshot(doc(db, "users", user.uid, "data", "products"), s => s.exists() && setProducts(s.data().items));
        const u2 = onSnapshot(doc(db, "users", user.uid, "data", "meals"), s => s.exists() && setMeals(s.data().items));
-       const u3 = onSnapshot(doc(db, "users", user.uid, "data", "planner_stable"), s => s.exists() && setPlannerData(s.data().items));
-       const u4 = onSnapshot(doc(db, "users", user.uid, "data", "profile_stable"), s => s.exists() && setUserProfile(s.data().info));
-       const u5 = onSnapshot(doc(db, "users", user.uid, "data", "weight_stable"), s => s.exists() && setWeightHistory(s.data().items));
+       const u3 = onSnapshot(doc(db, "users", user.uid, "data", "planner_v8"), s => s.exists() && setPlannerData(s.data().items));
+       const u4 = onSnapshot(doc(db, "users", user.uid, "data", "profile"), s => s.exists() && setUserProfile(s.data().info));
+       const u5 = onSnapshot(doc(db, "users", user.uid, "data", "weight"), s => s.exists() && setWeightHistory(s.data().items));
        return () => { u1(); u2(); u3(); u4(); u5(); };
     } else {
        const ls = (k:string) => localStorage.getItem(k);
@@ -854,26 +951,12 @@ const App = () => {
   }, [user]);
 
   const saveData = (type: string, data: any) => {
-    let fireKey = type; 
-    let localKey = `mp_${type}_stable`;
-
-    // Mapping
-    if (type === 'planner') fireKey = 'planner_stable';
-    if (type === 'profile') { fireKey = 'profile_stable'; }
-    if (type === 'weight') { fireKey = 'weight_stable'; }
-
-    let payloadKey = "items"; 
-    if(type === "profile") payloadKey = "info";
-
-    if (user && db) {
-        setDoc(doc(db, "users", user.uid, "data", fireKey), { [payloadKey]: data }, { merge: true });
-    } else {
-        localStorage.setItem(localKey, JSON.stringify(data));
-    }
+    let key = "items"; if(type === "profile") key = "info";
+    if (user && db) setDoc(doc(db, "users", user.uid, "data", type), { [key]: data }, { merge: true });
+    else localStorage.setItem(`my_${type}_v8`, JSON.stringify(data));
   };
 
-  // Wrappers
-  const updatePlanner = (d: PlannerData) => { setPlannerData(d); saveData('planner', d); };
+  const updatePlanner = (d: PlannerData) => { setPlannerData(d); saveData('planner_v8', d); };
   const dayStats = getDayStats(plannerData[currentDayStr], products);
   const t = TRANSLATIONS[lang];
 
