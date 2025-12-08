@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { 
   Utensils, Coffee, Sun, Moon, RotateCcw, 
   Plus, Trash2, Save, Edit2, ShoppingBag, Image as ImageIcon, 
-  ArrowLeft, X, ChevronDown, User, Calendar, TrendingDown, Activity, Search, Upload, LogOut, LogIn, Loader, AlertTriangle, Globe, Heart, ChevronLeft, ChevronRight, Scale
+  ArrowLeft, X, ChevronDown, User, Calendar, TrendingDown, Activity, Search, Upload, LogOut, LogIn, Loader, AlertTriangle, Globe, Heart, ChevronLeft, ChevronRight, Scale, Calculator, Hash
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -79,12 +79,13 @@ const TRANSLATIONS = {
     day_total: 'Daily total', choose: 'Select', sort_fav: 'Favorites first', week_prev: 'Previous', week_next: 'Next', today: 'Today',
     per_week: 'per week', per_month: 'per month', toggle_period: 'Change period',
     male: 'Male', female: 'Female',
-    act_sedentary: 'Sedentary (office)', act_light: 'Light (1-3x sport)', act_moderate: 'Moderate (3-5x)', act_active: 'Active (6-7x)', act_very_active: 'Very active / athlete',
+    act_sedentary: 'Sedentary (Office)', act_light: 'Light (1-3x sport)', act_moderate: 'Moderate (3-5x)', act_active: 'Active (6-7x)', act_very_active: 'Very Active / Athlete',
     sort_name: 'Name (A-Z)', sort_protein: 'Protein (High)', sort_kcal: 'Kcal (High)', sort_price_low: 'Price (Low)', sort_price_high: 'Price (High)',
     tab_meals: 'Meals', tab_products: 'Products', add_to_planner: 'Add',
     slot_ochtend: 'Breakfast', slot_middag: 'Lunch', slot_avond: 'Dinner', slot_snack: 'Snack',
     no_data: 'No items found', firebase_connected: 'Logged In', based_on: 'Based on TDEE',
-    adjust_portion: 'Adjust Portion', close: 'Close', total_calc: 'Total'
+    adjust_portion: 'Adjust portion', close: 'Close', total_calc: 'Total',
+    mode_multiplier: 'Multiplier (x)', mode_absolute: 'Total Amount (=)'
   },
   nl: {
     planner: 'Planner', meals: 'Maaltijden', products: 'Producten', profile: 'Profiel', login: 'Inloggen', register: 'Registreren', logout: 'Uitloggen',
@@ -102,7 +103,8 @@ const TRANSLATIONS = {
     tab_meals: 'Maaltijden', tab_products: 'Producten', add_to_planner: 'Toevoegen',
     slot_ochtend: 'Ochtend', slot_middag: 'Middag', slot_avond: 'Avond', slot_snack: 'Snack',
     no_data: 'Geen items gevonden', firebase_connected: 'Ingelogd', based_on: 'Gebaseerd op TDEE',
-    adjust_portion: 'Portie aanpassen', close: 'Sluiten', total_calc: 'Totaal'
+    adjust_portion: 'Portie aanpassen', close: 'Sluiten', total_calc: 'Totaal',
+    mode_multiplier: 'Vermenigvuldig (x)', mode_absolute: 'Totaal invoeren (=)'
   }
 };
 
@@ -161,15 +163,13 @@ const calculateTDEE = (
   return Math.round(bmr * (multipliers[activity] || 1.2));
 };
 
-// Hulpfunctie voor slimme portie weergave
-const getFormattedPortion = (amount: number, unit: string, t: string) => {
-    const match = unit.match(/^(\d+)\s*(.*)$/);
+// Helper om base unit en amount te splitsen: "100 gram" -> {base: 100, label: "gram"}
+const parseUnit = (unitStr: string) => {
+    const match = unitStr.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
     if (match) {
-        const baseAmt = parseFloat(match[1]);
-        const unitName = match[2];
-        return `(${t}: ${baseAmt * amount} ${unitName})`;
+        return { base: parseFloat(match[1]), label: match[2] };
     }
-    return "";
+    return { base: 1, label: unitStr }; // Fallback voor bijv "snede" zonder getal
 };
 
 // --- COMPONENTEN ---
@@ -203,7 +203,6 @@ const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   </div>
 );
 
-
 // --- GRAFIEK COMPONENT ---
 const WeightChart = ({ history }: { history: WeightEntry[] }) => {
   if (history.length < 2) return null;
@@ -212,7 +211,6 @@ const WeightChart = ({ history }: { history: WeightEntry[] }) => {
   const maxW = Math.max(...sorted.map(x => x.weight)) + 1;
   const range = maxW - minW;
   
-  // FIX: EXPLICIETE TYPES (number) VOOR 'i'
   const points = sorted.map((entry: WeightEntry, i: number) => {
     const x = (i / (sorted.length - 1)) * 100;
     const y = 100 - ((entry.weight - minW) / range) * 100;
@@ -364,7 +362,7 @@ const ProfileManager = ({ userProfile, setUserProfile, weightHistory, setWeightH
             <button onClick={handleSaveWeight} className="bg-purple-600 text-white px-4 rounded-lg font-bold">{editingIndex !== null ? t.update : t.log}</button>
          </div>
          <div className="max-h-40 overflow-y-auto space-y-1">
-            {weightHistory.map((e:WeightEntry, i:number) => (
+            {weightHistory.map((e:any, i:number) => (
                <div key={i} className={`flex justify-between items-center p-2 rounded-lg border ${editingIndex === i ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-700'}`}>
                   <div className="flex items-center gap-3">
                       <span className="text-slate-500 dark:text-slate-300 text-sm">{e.date}</span>
@@ -652,6 +650,7 @@ const MealManager = ({ meals, setMeals, products, lang }: any) => {
            </div>
            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 space-y-4">
               <Input value={currentMeal.title} onChange={e => setEditor({...currentMeal, title: e.target.value})} placeholder={t.name} className="font-bold" />
+              {/* CATEGORIE KIEZER VERWIJDERD IN DE EDITOR */}
               <div className="flex items-center gap-2 cursor-pointer" onClick={() => setEditor({...currentMeal, isFavorite: !currentMeal.isFavorite})}>
                  <Heart size={20} className={currentMeal.isFavorite ? "fill-red-500 text-red-500" : "text-slate-400"} />
                  <span className="text-sm dark:text-white">Favoriet</span>
@@ -721,38 +720,63 @@ const MealManager = ({ meals, setMeals, products, lang }: any) => {
   );
 };
 
-// --- PORTIE EDITOR POPUP (In Planner) ---
+// --- ITEM EDITOR POPUP (In Planner) ---
 const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) => {
+  // --- AANGEPAST: Toggle voor Input Mode (Multiplier vs Absolute) ---
+  const [mode, setMode] = useState<'multiplier' | 'absolute'>('multiplier');
   const [prods, setProds] = useState<MealProduct[]>([]);
 
   useEffect(() => {
-     if (item && item.products) setProds([...item.products]);
+     if (item && item.products) {
+         setProds([...item.products]);
+         setMode('multiplier'); // Reset naar standaard bij openen
+     }
   }, [item]);
 
   if (!isOpen || !item) return null;
 
-  const updateAmount = (pid: string, val: number) => {
-      const newProds = val <= 0 
-         ? prods.filter(x => x.productId !== pid)
-         : prods.map(x => x.productId === pid ? { ...x, amount: val } : x);
+  // Hulpfunctie om absolute hoeveelheid te berekenen (bijv 1.5 * 100 = 150)
+  const getAbsoluteAmount = (multiplier: number, unit: string) => {
+      const match = unit.match(/^(\d+)\s*(.*)$/);
+      const base = match ? parseFloat(match[1]) : 1;
+      return multiplier * base;
+  };
+
+  // Hulpfunctie om terug te rekenen van absoluut naar multiplier (bijv 150 / 100 = 1.5)
+  const calculateMultiplierFromAbsolute = (absAmount: number, unit: string) => {
+      const match = unit.match(/^(\d+)\s*(.*)$/);
+      const base = match ? parseFloat(match[1]) : 1;
+      return absAmount / base;
+  };
+
+  // Hulpfunctie om unit label te krijgen (bijv "gram")
+  const getUnitLabel = (unit: string) => {
+      const match = unit.match(/^(\d+)\s*(.*)$/);
+      return match ? match[2] : unit;
+  };
+
+  const handleInputChange = (pid: string, valStr: string, unit: string) => {
+      const val = parseFloat(valStr);
+      // Allow empty string to not delete row immediately
+      if (valStr === '') return; 
+
+      let newMultiplier = val;
+      if (mode === 'absolute') {
+          newMultiplier = calculateMultiplierFromAbsolute(val, unit);
+      }
+
+      const newProds = prods.map(x => x.productId === pid ? { ...x, amount: newMultiplier } : x);
       setProds(newProds);
   };
+
+  const removeIngredient = (pid: string) => {
+      setProds(prods.filter(x => x.productId !== pid));
+  }
 
   const save = () => {
       const updatedItem = { ...item, products: prods };
       onSave(updatedItem);
       onClose();
-  };
-
-  // Helper voor slimme weergave in popup
-  const getSmartPortionText = (amount: number, unit: string) => {
-      const match = unit.match(/^(\d+)\s*(.*)$/);
-      if (match) {
-          const baseAmt = parseFloat(match[1]);
-          const unitName = match[2];
-          return `(${t.total_calc}: ${baseAmt * amount} ${unitName})`;
-      }
-      return "";
   };
 
   return (
@@ -762,25 +786,41 @@ const PlannerItemEditor = ({ isOpen, item, products, onSave, onClose, t }: any) 
                <h3 className="font-bold text-lg dark:text-white">{item.title}</h3>
                <button onClick={onClose}><X size={20} className="dark:text-white"/></button>
            </div>
-           <p className="text-xs text-slate-500 dark:text-slate-400 italic">{t.adjust_portion}</p>
+           
+           {/* MODE TOGGLE */}
+           <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+               <button onClick={() => setMode('multiplier')} className={`flex-1 py-1 text-xs font-bold rounded ${mode==='multiplier'?'bg-white dark:bg-slate-600 shadow text-blue-600':'text-slate-500'}`}>{t.mode_multiplier}</button>
+               <button onClick={() => setMode('absolute')} className={`flex-1 py-1 text-xs font-bold rounded ${mode==='absolute'?'bg-white dark:bg-slate-600 shadow text-blue-600':'text-slate-500'}`}>{t.mode_absolute}</button>
+           </div>
+
            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
                {prods.map(p => {
                    const prodInfo = products.find((x:any) => x.id === p.productId);
                    if (!prodInfo) return null;
+                   
+                   // Bepaal waarde voor input veld
+                   const displayValue = mode === 'multiplier' 
+                        ? p.amount 
+                        : getAbsoluteAmount(p.amount, prodInfo.unit);
+                    
+                   const displayUnit = mode === 'multiplier' 
+                        ? `x ${prodInfo.unit}` 
+                        : getUnitLabel(prodInfo.unit);
+
                    return (
                        <div key={p.productId} className="flex justify-between items-center bg-slate-50 dark:bg-slate-700 p-2 rounded">
                            <div className="flex flex-col">
                                <span className="text-sm font-bold dark:text-white">{prodInfo.name}</span>
-                               <span className="text-[10px] text-slate-400">{getSmartPortionText(p.amount, prodInfo.unit)}</span>
                            </div>
                            <div className="flex items-center gap-2">
                                <input 
                                   type="number" 
-                                  className="w-16 p-1 border rounded text-right dark:bg-slate-600 dark:text-white" 
-                                  value={p.amount} 
-                                  onChange={e => updateAmount(p.productId, +e.target.value)}
+                                  className="w-20 p-1 border rounded text-right dark:bg-slate-600 dark:text-white" 
+                                  value={displayValue ? Math.round(displayValue * 100) / 100 : ''} // Round to 2 decimals
+                                  onChange={e => handleInputChange(p.productId, e.target.value, prodInfo.unit)}
                                />
-                               <span className="text-xs text-slate-500">x {prodInfo.unit}</span>
+                               <span className="text-xs text-slate-500 min-w-[30px]">{displayUnit}</span>
+                               <button onClick={() => removeIngredient(p.productId)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                            </div>
                        </div>
                    )
@@ -834,24 +874,21 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
   };
 
   const updateItem = (updatedItem: PlannerItem) => {
-   const dayItems = plannerData[currentDayStr] || {};
-   let foundSlot: Slot | null = null;
+      const dayItems = plannerData[currentDayStr] || {};
+      let foundSlot: Slot | null = null;
+      
+      (Object.keys(dayItems) as Slot[]).forEach(slot => {
+          if (dayItems[slot]?.some(i => i.instanceId === updatedItem.instanceId)) {
+              foundSlot = slot;
+          }
+      });
 
-   (Object.keys(dayItems) as Slot[]).forEach((slot: Slot) => {
-       if (dayItems[slot]?.some((i: PlannerItem) => i.instanceId === updatedItem.instanceId)) {
-           foundSlot = slot;
-       }
-   });
-
-   if (foundSlot) {
-       const newItems = dayItems[foundSlot]!.map((i: PlannerItem) =>
-           i.instanceId === updatedItem.instanceId ? updatedItem : i
-       );
-
-       const newDayData = { ...dayItems, [foundSlot]: newItems };
-       setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
-   }
-};
+      if (foundSlot) {
+          const newItems = dayItems[foundSlot]!.map(i => i.instanceId === updatedItem.instanceId ? updatedItem : i);
+          const newDayData = { ...dayItems, [foundSlot]: newItems };
+          setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
+      }
+  };
   
   const dayData = plannerData[currentDayStr] || {};
 
