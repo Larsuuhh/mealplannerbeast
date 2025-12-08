@@ -878,13 +878,13 @@ const Planner = ({ products, plannerData, setPlannerData, currentDayStr, setCurr
       let foundSlot: Slot | null = null;
       
       (Object.keys(dayItems) as Slot[]).forEach(slot => {
-          if (dayItems[slot]?.some(i => i.instanceId === updatedItem.instanceId)) {
+          if (dayItems[slot]?.some((i: PlannerItem) => i.instanceId === updatedItem.instanceId)) {
               foundSlot = slot;
           }
       });
 
       if (foundSlot) {
-          const newItems = dayItems[foundSlot]!.map(i => i.instanceId === updatedItem.instanceId ? updatedItem : i);
+          const newItems = dayItems[foundSlot]!.map((i: PlannerItem) => i.instanceId === updatedItem.instanceId ? updatedItem : i);
           const newDayData = { ...dayItems, [foundSlot]: newItems };
           setPlannerData({ ...plannerData, [currentDayStr]: newDayData });
       }
